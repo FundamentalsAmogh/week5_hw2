@@ -1,0 +1,264 @@
+---
+title: An R Markdown document converted from "Week5_Exercise2_HDI.ipynb"
+output: html_document
+---
+
+# Exercise 2: Human Development Index Analysis
+
+**Author:** Amogh Guthur
+
+This notebook reads HDI Table 1 data from GitHub, cleans the dataset to keep only countries without missing values, computes summary statistics, and creates visualizations.
+
+## Setup: Install and Load Packages
+
+```{r}
+# Install required packages for data manipulation and reading Excel files
+install.packages(c("tidyverse", "readxl", "httr"), quiet = TRUE, repos = "http://cran.us.r-project.org")
+```
+
+```{r}
+# Load tidyverse for data manipulation and visualization
+library(tidyverse)
+```
+
+```{r}
+# Load readxl for reading Excel files
+library(readxl)
+```
+
+```{r}
+# Load httr for downloading files from URLs
+library(httr)
+```
+
+## Step 1: Download HDI Data from GitHub
+
+```{r}
+# Define GitHub URL for HDI Excel file
+url <- "https://github.com/FundamentalsAmogh/week5_hw2/raw/main/HDR25_Statistical_Annex_HDI_Table.xlsx"
+
+# Download file to temporary location
+temp <- tempfile(fileext = ".xlsx")
+GET(url, write_disk(temp, overwrite = TRUE))
+```
+
+## Step 2: Read and Inspect the Excel File
+
+```{r}
+# View sheet names in the Excel file
+excel_sheets(temp)
+```
+
+```{r}
+# Read the raw data to inspect structure (no skipping)
+hdi_peek <- read_excel(temp, sheet = 1, n_max = 15)
+hdi_peek
+```
+
+```{r}
+# Read the data skipping appropriate header rows
+hdi_raw <- read_excel(temp, sheet = 1)
+```
+
+```{r}
+# View column names
+names(hdi_raw)
+```
+
+```{r}
+# View first 20 rows
+head(hdi_raw, 20)
+```
+
+## Step 3: Select and Rename Columns
+
+
+**IMPORTANT FIX:** The Excel file has alternating data columns and empty columns. Looking at the structure:
+- Column 1: HDI Rank
+- Column 2: Country  
+- Column 3: HDI Value
+- Column 4: **Empty (NA)**
+- Column 5: Life Expectancy
+- Column 6: **Empty (NA)**
+- Column 7: Expected Years of Schooling
+- Column 8: **Empty (NA)**
+- Column 9: Mean Years of Schooling
+- Column 10: **Empty (NA)**
+- Column 11: GNI per Capita
+
+We need to select columns **1, 2, 3, 5, 7, 9, 11** (skipping the empty ones).
+
+```{r}
+# Select the CORRECT columns (skipping the empty NA columns)
+# Columns: 1=Rank, 2=Country, 3=HDI, 5=Life Exp, 7=Expected School, 9=Mean School, 11=GNI
+hdi_select <- hdi_raw[, c(1, 2, 3, 5, 7, 9, 11)]
+```
+
+```{r}
+# Rename columns to clean names
+names(hdi_select) <- c("HDI_Rank", "Country", "HDI_Value", "Life_Expectancy",
+                        "Expected_Years_Schooling", "Mean_Years_Schooling", "GNI_Per_Capita")
+```
+
+```{r}
+# View renamed data
+head(hdi_select, 20)
+```
+
+## Step 4: Clean the Data - Keep Only Countries
+
+```{r}
+# Remove rows where HDI_Rank is not a valid number (these are headers/notes)
+hdi_clean <- hdi_select %>%
+  filter(!is.na(suppressWarnings(as.numeric(HDI_Rank))))
+```
+
+```{r}
+# Convert columns to proper numeric types
+hdi_clean <- hdi_clean %>% mutate(
+  HDI_Rank = as.numeric(HDI_Rank),
+  HDI_Value = as.numeric(HDI_Value),
+  Life_Expectancy = as.numeric(Life_Expectancy),
+  Expected_Years_Schooling = as.numeric(Expected_Years_Schooling),
+  Mean_Years_Schooling = as.numeric(Mean_Years_Schooling),
+  GNI_Per_Capita = as.numeric(GNI_Per_Capita)
+)
+```
+
+```{r}
+# Check how many rows we have now
+cat("Rows after filtering by valid HDI_Rank:", nrow(hdi_clean))
+```
+
+## Step 5: Remove Countries with Missing Values
+
+```{r}
+# Count missing values in each column
+colSums(is.na(hdi_clean))
+```
+
+```{r}
+# Remove rows with any missing values
+hdi_final <- na.omit(hdi_clean)
+```
+
+```{r}
+# Check final row count
+cat("Final number of countries:", nrow(hdi_final))
+```
+
+## Step 6: Verify Cleaned Data
+
+```{r}
+# Check structure of final data
+str(hdi_final)
+```
+
+```{r}
+# View first 15 rows
+head(hdi_final, 15)
+```
+
+```{r}
+# View last 10 rows
+tail(hdi_final, 10)
+```
+
+```{r}
+# Summary statistics
+summary(hdi_final)
+```
+
+## Step 7: Compute Mean of Key Variables
+
+As required by the assignment, computing the mean of: Life expectancy at birth, Expected years of schooling, Mean years of schooling, and GNI per capita.
+
+```{r}
+# Compute mean of Life Expectancy at birth
+mean_life_exp <- mean(hdi_final$Life_Expectancy, na.rm = TRUE)
+cat("Mean Life Expectancy at birth:", round(mean_life_exp, 2), "years")
+```
+
+```{r}
+# Compute mean of Expected Years of Schooling
+mean_expected_school <- mean(hdi_final$Expected_Years_Schooling, na.rm = TRUE)
+cat("Mean Expected Years of Schooling:", round(mean_expected_school, 2), "years")
+```
+
+```{r}
+# Compute mean of Mean Years of Schooling
+mean_years_school <- mean(hdi_final$Mean_Years_Schooling, na.rm = TRUE)
+cat("Mean Years of Schooling:", round(mean_years_school, 2), "years")
+```
+
+```{r}
+# Compute mean of GNI per Capita
+mean_gni <- mean(hdi_final$GNI_Per_Capita, na.rm = TRUE)
+cat("Mean GNI per Capita:", round(mean_gni, 2), "(2021 PPP $)")
+```
+
+```{r}
+# Display all means in a summary table
+means_summary <- data.frame(
+  Variable = c("Life Expectancy at birth", "Expected Years of Schooling",
+               "Mean Years of Schooling", "GNI per Capita"),
+  Mean = c(round(mean_life_exp, 2), round(mean_expected_school, 2),
+           round(mean_years_school, 2), round(mean_gni, 2)),
+  Unit = c("years", "years", "years", "2021 PPP $")
+)
+means_summary
+```
+
+## Step 8: Visualization 1 - HDI Value Distribution
+
+This histogram shows the distribution of Human Development Index values across all countries. The HDI ranges from 0 to 1, with higher values indicating better human development. The red dashed line shows the global mean HDI.
+
+```{r}
+# Create histogram of HDI values showing distribution across countries
+ggplot(hdi_final, aes(x = HDI_Value)) +
+  geom_histogram(bins = 20, fill = "steelblue", color = "white", alpha = 0.7) +
+  geom_vline(xintercept = mean(hdi_final$HDI_Value, na.rm = TRUE),
+             color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of Human Development Index Values",
+       subtitle = "Red dashed line shows the global mean HDI",
+       x = "HDI Value",
+       y = "Number of Countries",
+       caption = "Source: UNDP Human Development Report 2025") +
+  theme_minimal()
+```
+
+## Step 9: Visualization 2 - Life Expectancy vs GNI per Capita
+
+This scatter plot shows the relationship between Life Expectancy and GNI per Capita. These are two of the three dimensions used to calculate HDI. The plot reveals that higher income countries generally have higher life expectancy, though the relationship shows diminishing returns at higher income levels.
+
+```{r}
+# Create scatter plot showing relationship between life expectancy and income
+ggplot(hdi_final, aes(x = GNI_Per_Capita, y = Life_Expectancy)) +
+  geom_point(alpha = 0.6, color = "steelblue", size = 2) +
+  geom_smooth(method = "loess", color = "red", se = FALSE) +
+  scale_x_continuous(labels = scales::comma) +
+  labs(title = "Life Expectancy vs GNI per Capita",
+       subtitle = "Higher income generally associated with longer life expectancy",
+       x = "GNI per Capita (2021 PPP $)",
+       y = "Life Expectancy (years)",
+       caption = "Source: UNDP Human Development Report 2025") +
+  theme_minimal()
+```
+
+## Step 10: Visualization 3 - Education Indicators Comparison
+
+This scatter plot compares Expected Years of Schooling with Mean Years of Schooling. Expected years represents future educational attainment for children entering school, while mean years shows current adult education levels. Points above the diagonal line indicate countries where future generations are expected to receive more education than current adults.
+
+```{r}
+# Create scatter plot comparing education indicators
+ggplot(hdi_final, aes(x = Mean_Years_Schooling, y = Expected_Years_Schooling)) +
+  geom_point(alpha = 0.6, color = "steelblue", size = 2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "gray50") +
+  labs(title = "Expected vs Mean Years of Schooling",
+       subtitle = "Points above diagonal indicate improving educational attainment",
+       x = "Mean Years of Schooling (adults)",
+       y = "Expected Years of Schooling (children)",
+       caption = "Source: UNDP Human Development Report 2025") +
+  theme_minimal()
+```
+
